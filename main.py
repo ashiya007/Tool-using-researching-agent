@@ -48,6 +48,7 @@ tools = [
     }
 ]
 
+# First LLM call
 response = client.chat.completions.create(
     model="openai/gpt-oss-120b",
     messages=messages,
@@ -56,19 +57,40 @@ response = client.chat.completions.create(
 )
 
 message = response.choices[0].message
+
+# Check if the LLM wants to use a tool
 if message.tool_calls:
+
     tool_call = message.tool_calls[0]
 
     tool_name = tool_call.function.name
     arguments = json.loads(tool_call.function.arguments)
 
     if tool_name == "search":
+
+        # Execute our Python search function
         results = search(arguments["query"])
 
-        print("\nSearch results:")
-        for result in results:
-            print("\nTitle:", result["title"])
-            print("URL:", result["url"])
-            print("Content:", result["content"])
-print("\nLLM response:")
-print(message)
+        # Add the LLM's tool request to the conversation
+        messages.append(message)
+
+        # Add the tool results
+        messages.append({
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "content": json.dumps(results)
+        })
+
+        # Send everything back to the LLM
+        final_response = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=messages
+        )
+
+        print("\nFinal answer:")
+        print(final_response.choices[0].message.content)
+
+else:
+    # If no search was needed
+    print("\nAnswer:")
+    print(message.content)
